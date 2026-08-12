@@ -1,0 +1,43 @@
+# ERIS2 — GPU image (CUDA 12.1, matching the environment used for the paper).
+#
+#   docker build -f Dockerfile.gpu -t eris2:gpu .
+#   docker run --rm --gpus all -v eris2-cache:/cache -v "$PWD:/work" -w /work \
+#       eris2:gpu python scripts/batch_predict.py \
+#           --csv data/example/mutations.csv --pdb-dir data/example/pdbs \
+#           --out predictions.csv
+
+# Ubuntu 20.04 ships Python 3.8, matching the environment the results
+# were produced in.
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.8 python3-pip dssp \
+    && rm -rf /var/lib/apt/lists/* \
+    && (command -v mkdssp || ln -s "$(command -v dssp)" /usr/local/bin/mkdssp) \
+    && mkdssp --version \
+    && ln -sf /usr/bin/python3.8 /usr/local/bin/python
+
+WORKDIR /opt/eris2
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY eris2/ ./eris2/
+COPY scripts/ ./scripts/
+COPY configs/ ./configs/
+COPY data/ ./data/
+COPY model/ ./model/
+COPY tests/ ./tests/
+COPY README.md LICENSE ./
+
+ENV PYTHONPATH=/opt/eris2 \
+    TORCH_HOME=/cache/torch \
+    HF_HOME=/cache/hf
+VOLUME ["/cache"]
+
+RUN python -c "from eris2.data import require_dssp; require_dssp()" \
+    && python -c "import eris2, torch; print('ERIS2', eris2.__version__, '| torch', torch.__version__)"
+
+ENTRYPOINT []
+CMD ["python", "scripts/predict.py", "--help"]

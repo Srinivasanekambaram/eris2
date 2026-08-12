@@ -1,0 +1,9 @@
+.git
+__pycache__/
+*.pyc
+.pytest_cache/
+cache/
+runs/
+predictions.csv
+metrics.json
+*.tar.gz

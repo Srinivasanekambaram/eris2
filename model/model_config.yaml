@@ -1,0 +1,24 @@
+# Architecture and feature geometry for the released checkpoint.
+# Used automatically by the prediction scripts.
+dataset:
+  window_half: 15
+  ca_radius_a: 15.0
+  ca_neigh: 15
+  atom_neigh: 100
+  esm_model_name: esm2_t33_650M_UR50D
+  hbond_distance_cutoff_a: 3.5
+model:
+  esm_dim: 1280
+  d_model: 256
+  n_heads: 8
+  n_sequence_layers: 3
+  d_ff: 1024
+  dropout: 0.1
+  window_len: 31
+  mutation_position: 15
+  ca_matrix_size: 15
+  atom_matrix_size: 100
+  per_residue_hidden: 64
+  struct_hidden: 128
+  fc_hidden: 512
+  fc_layers: 3

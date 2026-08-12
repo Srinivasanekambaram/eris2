@@ -1,9 +1,19 @@
-pandas>=2.0
-numpy>=1.24
-tqdm>=4.66
-biopython>=1.83
-fair-esm>=2.0.0
---extra-index-url https://download.pytorch.org/whl/cu118
-torch==2.4.1+cu118
-torchvision==0.19.1+cu118
-torchaudio==2.4.1+cu118
+# Tested with Python 3.8 on Linux. These are the exact versions used to
+# produce the published results.
+
+torch==2.4.1
+numpy==1.24.4
+scipy==1.10.1
+scikit-learn==1.3.2
+pandas==2.0.3
+tqdm==4.67.1
+pyyaml==6.0.3
+
+biopython==1.83
+
+# FAIR's ESM, imported as `import esm`. The unrelated PyPI package named `esm`
+# is not a substitute.
+fair-esm==2.0.0
+
+matplotlib==3.7.5
+seaborn==0.13.2
