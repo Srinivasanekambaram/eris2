@@ -26,6 +26,8 @@ def main():
     ap.add_argument("--config", default=DEFAULT_CONFIG)
     ap.add_argument("--cache-dir", dest="cache_dir", default="cache")
     ap.add_argument("--out", default="predictions.csv")
+    ap.add_argument("--device", default=None,
+                    help="torch device, e.g. cuda, cuda:1 or cpu. Default: cuda when available, else cpu")
     ap.add_argument("--batch-size", dest="batch_size", type=int, default=32)
     args = ap.parse_args()
 
@@ -39,7 +41,8 @@ def main():
     if "ddg" not in df.columns:
         df = df.assign(ddg=0.0)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(args.device) if args.device else \
+        torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = ProteinDataset(DatasetConfig(
         csv_file=df, pdb_folder=args.pdb_dir, cache_dir=args.cache_dir))
     loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,

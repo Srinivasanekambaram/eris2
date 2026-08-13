@@ -1,39 +1,39 @@
 # ERIS2 training config — reference. Copy and edit for your run.
 experiment:
-  name: eris2_default              
+  name: eris2_default
   output_dir: ./runs
   seed: 42
 
 dataset:
-  csv_file: /path/to/training.csv 
+  csv_file: /path/to/training.csv
   pdb_folder: /path/to/pdbs
-  cache_dir: ./cache              
+  cache_dir: ./cache
   use_disk_cache: true
 
-  window_half: 15               
-  ca_radius_a: 15.0             
-  ca_neigh: 15                    
-  atom_neigh: 100                  
+  window_half: 15
+  ca_radius_a: 15.0
+  ca_neigh: 15
+  atom_neigh: 100
 
   esm_model_name: esm2_t33_650M_UR50D
-  hbond_distance_cutoff_a: 3.5   
+  hbond_distance_cutoff_a: 3.5
 
-  device: null                    
-  offline_esm: false               
+  device: null
+  offline_esm: false
 
 model:
-  esm_dim: 1280                   
+  esm_dim: 1280
   d_model: 256
   n_heads: 8
   n_sequence_layers: 3
   d_ff: 1024
   dropout: 0.1
 
-  window_len: 31                  
-  mutation_position: 15            
+  window_len: 31
+  mutation_position: 15
 
-  ca_matrix_size: 15              
-  atom_matrix_size: 100          
+  ca_matrix_size: 15
+  atom_matrix_size: 100
 
   per_residue_hidden: 64
   struct_hidden: 128
@@ -42,14 +42,14 @@ model:
 
 splitting:
   n_folds: 5
-  val_fraction: 0.10              
+  val_fraction: 0.10
   split_seed: 12345
-  freeze_folds: true              
-  cluster_column: cluster_id      
-  allow_random_split: false       
+  freeze_folds: true
+  cluster_column: cluster_id
+  allow_random_split: false
 training:
   batch_size: 64
-  num_workers: 0                   
+  num_workers: 0
   lr: 1.0e-4
   weight_decay: 1.0e-4
   max_epochs: 50

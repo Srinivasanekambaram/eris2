@@ -63,13 +63,16 @@ def main():
     ap.add_argument("--config", default=DEFAULT_CONFIG)
     ap.add_argument("--cache-dir", dest="cache_dir", default="cache")
     ap.add_argument("--out", default=None, help="Optional CSV output path")
+    ap.add_argument("--device", default=None,
+                    help="torch device, e.g. cuda, cuda:1 or cpu. Default: cuda when available, else cpu")
     ap.add_argument("--show-folds", dest="show_folds", action="store_true",
                     help="Print each ensemble member's prediction")
     args = ap.parse_args()
 
     require_dssp()
     df = predict(args.pdb, args.chain, args.mutation,
-                 args.checkpoint, args.config, args.cache_dir)
+                 args.checkpoint, args.config, args.cache_dir,
+                 device=torch.device(args.device) if args.device else None)
 
     width = max(len(m) for m in df["mutation"])
     print()

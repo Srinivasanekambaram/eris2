@@ -531,6 +531,67 @@ class ProteinDataset(Dataset):
             torch.save(embeddings, emb_path)
         return embeddings
 
+    def _protein_cache_path(self, pdb_file: str, chain_id: str) -> Optional[Path]:
+        if not self.config.use_disk_cache:
+            return None
+        try:
+            h = hashlib.md5()
+            with open(pdb_file, "rb") as f:
+                for block in iter(lambda: f.read(1 << 20), b""):
+                    h.update(block)
+        except OSError:
+            return None
+        key = (f"{CACHE_VERSION}|protein|{h.hexdigest()}|{chain_id}"
+               f"|{self.config.hbond_distance_cutoff_a}")
+        return self.cache_dir / f"protein_{hashlib.md5(key.encode()).hexdigest()}.pkl"
+
+    def _protein_context(self, uniprot_id: str, chain_id: str, pdb_file: str,
+                         structure) -> Optional[dict]:
+        path = self._protein_cache_path(pdb_file, chain_id)
+        if path is not None and path.exists():
+            try:
+                with open(path, "rb") as f:
+                    return pickle.load(f)
+            except Exception:
+                path.unlink(missing_ok=True)
+
+        sequence, pdb_to_seq, _ = get_sequence_and_mapping(structure, chain_id)
+        if not sequence:
+            return None
+
+        ca_coords = get_ca_coordinates(structure, chain_id)
+        atom_coords, _elements, _atom_res, res_atom_ranges = get_all_atom_info(
+            structure, chain_id)
+        rsa_full, ss_full, phi_psi_full = calculate_dssp_features(
+            pdb_file, structure, chain_id)
+        hbond_full = calculate_hbonds(
+            structure, chain_id,
+            distance_cutoff=self.config.hbond_distance_cutoff_a)
+        charge_full, hydro_full = get_physicochemical(sequence)
+        atom_type_full = get_atom_type_features(structure, chain_id)
+
+        n = len(sequence)
+        ctx = {
+            "sequence": sequence,
+            "pdb_to_seq": pdb_to_seq,
+            "ca_coords": ca_coords,
+            "atom_coords": atom_coords,
+            "res_atom_ranges": res_atom_ranges,
+            "rsa_full": _pad_to_length(rsa_full, n),
+            "ss_full": _pad_to_length(ss_full, n, width=8),
+            "phi_psi_full": _pad_to_length(phi_psi_full, n, width=2),
+            "hbond_full": _pad_to_length(hbond_full, n, width=3),
+            "atom_type_full": _pad_to_length(atom_type_full, n, width=4),
+            "charge_full": charge_full,
+            "hydro_full": hydro_full,
+        }
+        if path is not None:
+            tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+            with open(tmp, "wb") as f:
+                pickle.dump(ctx, f)
+            os.replace(tmp, path)
+        return ctx
+
     def _load_structure(self, uniprot_id: str) -> Optional[PDB.Structure.Structure]:
         pdb_path = self.pdb_folder / f"{uniprot_id}.pdb"
         if not pdb_path.exists():
@@ -568,9 +629,10 @@ class ProteinDataset(Dataset):
             return None
 
         pdb_file = str(self.pdb_folder / f"{uniprot_id}.pdb")
-        sequence, pdb_to_seq, _seq_to_pdb = get_sequence_and_mapping(structure, chain_id)
-        if not sequence:
+        ctx = self._protein_context(uniprot_id, chain_id, pdb_file, structure)
+        if ctx is None:
             return None
+        sequence, pdb_to_seq = ctx["sequence"], ctx["pdb_to_seq"]
 
         if not MUTATION_RE.match(str(mutation)):
             warnings.warn(
@@ -612,31 +674,21 @@ class ProteinDataset(Dataset):
             mut_window = extract_window_1d(mut_full.numpy(), seq_position, w).astype(np.float32)
         window_mask = extract_window_mask(len(sequence), seq_position, w)
 
-        ca_coords = get_ca_coordinates(structure, chain_id)
         selected_res, ca_submatrix = get_ca_neighborhood(
-            ca_coords, seq_position, self.config.ca_radius_a, self.config.ca_neigh
-        )
-        atom_coords, _elements, _atom_res, res_atom_ranges = get_all_atom_info(
-            structure, chain_id
+            ctx["ca_coords"], seq_position, self.config.ca_radius_a,
+            self.config.ca_neigh
         )
         atom_submatrix = get_atom_neighborhood(
-            atom_coords, res_atom_ranges, selected_res, self.config.atom_neigh
+            ctx["atom_coords"], ctx["res_atom_ranges"], selected_res,
+            self.config.atom_neigh
         )
 
-        rsa_full, ss_full, phi_psi_full = calculate_dssp_features(pdb_file, structure, chain_id)
-        hbond_full = calculate_hbonds(
-            structure,
-            chain_id,
-            distance_cutoff=self.config.hbond_distance_cutoff_a,
-        )
-        charge_full, hydro_full = get_physicochemical(sequence)
-        atom_type_full = get_atom_type_features(structure, chain_id)
-
-        rsa_full = _pad_to_length(rsa_full, len(sequence))
-        ss_full = _pad_to_length(ss_full, len(sequence), width=8)
-        phi_psi_full = _pad_to_length(phi_psi_full, len(sequence), width=2)
-        hbond_full = _pad_to_length(hbond_full, len(sequence), width=3)
-        atom_type_full = _pad_to_length(atom_type_full, len(sequence), width=4)
+        rsa_full = ctx["rsa_full"]
+        ss_full = ctx["ss_full"]
+        phi_psi_full = ctx["phi_psi_full"]
+        hbond_full = ctx["hbond_full"]
+        atom_type_full = ctx["atom_type_full"]
+        charge_full, hydro_full = ctx["charge_full"], ctx["hydro_full"]
 
         rsa_w = extract_window_1d(rsa_full, seq_position, w)
         angles_w = extract_window_1d(phi_psi_full, seq_position, w)

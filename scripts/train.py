@@ -35,11 +35,37 @@ def build_or_load_folds(
     folds_path: Path, freeze: bool,
     cluster_labels: "np.ndarray | None" = None,
 ) -> List[Dict[str, list]]:
+    meta_path = folds_path.with_name(folds_path.stem + ".meta.json")
+    meta = {"n_folds": n_folds, "n_samples": n_samples, "split_seed": split_seed,
+            "val_fraction": val_fraction,
+            "cluster_aware": cluster_labels is not None,
+            "n_clusters": len(set(cluster_labels)) if cluster_labels is not None else None}
+
     if freeze and folds_path.exists():
         with open(folds_path) as f:
             folds = json.load(f)
         if len(folds) != n_folds:
             raise RuntimeError(f"{folds_path} has {len(folds)} folds, expected {n_folds}")
+        if meta_path.exists():
+            with open(meta_path) as f:
+                stored = json.load(f)
+            differing = {k: (stored.get(k), v) for k, v in meta.items()
+                         if k in stored and stored.get(k) != v}
+            if differing:
+                detail = "\n".join(f"    {k}: frozen split used {was!r}, "
+                                   f"this config asks for {now!r}"
+                                   for k, (was, now) in sorted(differing.items()))
+                raise SystemExit(
+                    f"{folds_path} was generated with different splitting "
+                    f"parameters:\n{detail}\n\n"
+                    f"The frozen split is reused as-is, so this run would not use "
+                    f"the settings in your config. Either restore the original "
+                    f"settings, or delete {folds_path.name} and "
+                    f"{meta_path.name} to generate a new split — which makes the "
+                    f"results incomparable with anything trained on the old one.")
+        else:
+            print(f"[folds] note: {meta_path.name} is absent, so the frozen split "
+                  f"cannot be checked against this config's splitting parameters")
         for k, f in enumerate(folds):
             union = set(f["train"]) | set(f["val"]) | set(f["test"])
             if len(union) != n_samples:
@@ -55,8 +81,19 @@ def build_or_load_folds(
     if cluster_labels is not None:
         assert len(cluster_labels) == n_samples, \
             f"cluster_labels len ({len(cluster_labels)}) != n_samples ({n_samples})"
+        n_clusters = len(set(cluster_labels))
+        if n_clusters < n_folds:
+            raise SystemExit(
+                f"Cannot build a {n_folds}-fold cluster-aware split from "
+                f"{n_clusters} sequence cluster(s): whole clusters are assigned "
+                f"to a single fold, so at least one cluster per fold is needed "
+                f"and {n_folds - n_clusters} fold(s) would have no test data.\n\n"
+                f"Either set splitting.n_folds to {n_clusters} or fewer, or use a "
+                f"training set covering more sequence clusters. The cluster count "
+                f"comes from the '{'cluster_id'}' column; scripts/cluster.py adds "
+                f"it with MMseqs2.")
         print(f"[folds] generating STRICT cluster-aware {n_folds}-fold split "
-              f"({len(set(cluster_labels))} clusters, seed={split_seed})")
+              f"({n_clusters} clusters, seed={split_seed})")
         folds = _make_cluster_aware_folds(
             cluster_labels=cluster_labels, n_folds=n_folds,
             val_fraction=val_fraction, split_seed=split_seed,
@@ -71,7 +108,11 @@ def build_or_load_folds(
         with open(tmp, "w") as f:
             json.dump(folds, f, indent=2)
         os.replace(tmp, folds_path)
-        print(f"[folds] wrote {folds_path}")
+        tmp_meta = meta_path.with_suffix(meta_path.suffix + f".tmp.{os.getpid()}")
+        with open(tmp_meta, "w") as f:
+            json.dump(meta, f, indent=2)
+        os.replace(tmp_meta, meta_path)
+        print(f"[folds] wrote {folds_path} and {meta_path.name}")
     return folds
 
 
@@ -254,6 +295,8 @@ def _write_summary(per_fold: List[Dict[str, float]], out_path: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True, help="path to YAML config")
+    ap.add_argument("--device", default=None,
+                    help="torch device, e.g. cuda, cuda:1 or cpu. Default: cuda when available, else cpu")
     ap.add_argument("--fold", type=int, default=None,
                     help="if set, only train this fold (1-indexed). Useful for parallel SLURM.")
     args = ap.parse_args()
@@ -269,7 +312,8 @@ def main() -> int:
     print(f"[main] experiment dir: {experiment_dir}")
 
     _set_all_seeds(exp["seed"])
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(args.device) if args.device else \
+        torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[main] device: {device}")
 
     ds_cfg = DatasetConfig(**config["dataset"])
