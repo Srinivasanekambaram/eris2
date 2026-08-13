@@ -47,20 +47,27 @@ def main():
 
     models = load_models(args.checkpoint, args.config, device)
     t0 = time.time()
-    ddg, per_model, _ = predict_batch(models, loader, device)
+    ddg, per_model, _, rows = predict_batch(models, loader, device)
     elapsed = time.time() - t0
 
     if len(ddg) == 0:
         raise SystemExit("No predictions produced. Check that the PDB files exist "
                          "and that each mutation's wild-type residue matches the structure.")
-    if len(ddg) != len(df):
-        print(f"[warn] {len(df) - len(ddg)} of {len(df)} rows could not be "
-              f"featurised and were dropped.")
 
-    out = df.iloc[:len(ddg)][list(REQUIRED)].copy()
+    if len(ddg) != len(df):
+        dropped = df.index.difference(pd.Index(rows))
+        print(f"[warn] {len(dropped)} of {len(df)} rows could not be featurised "
+              f"and were dropped:")
+        for i in dropped[:10]:
+            r = df.loc[i]
+            print(f"         row {i}: {r['uniprot']} {r['chain']} {r['mut']}")
+        if len(dropped) > 10:
+            print(f"         ... and {len(dropped) - 10} more")
+
+    out = df.iloc[rows][list(REQUIRED)].copy()
     out["ddg_pred"] = ddg
     if "ddg" in df.columns and df["ddg"].abs().sum() > 0:
-        out["ddg_exp"] = df["ddg"].iloc[:len(ddg)].to_numpy()
+        out["ddg_exp"] = df["ddg"].iloc[rows].to_numpy()
     for i in range(per_model.shape[0]):
         out[f"fold_{i + 1}"] = per_model[i]
     out.to_csv(args.out, index=False)

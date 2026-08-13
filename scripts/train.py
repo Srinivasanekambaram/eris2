@@ -15,9 +15,10 @@ import torch
 import yaml
 from torch.utils.data import DataLoader, Subset
 
-from dataset_checking import DatasetConfig, ProteinDataset
-from model import DDGPredictor, ModelConfig, count_parameters
-from mut_seq import (
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from eris2.data import DatasetConfig, ProteinDataset
+from eris2.model import DDGPredictor, ModelConfig, count_parameters
+from eris2.training import (
     collate_skip_none, evaluate_model, make_default_lr_scheduler, train_model,
 )
 

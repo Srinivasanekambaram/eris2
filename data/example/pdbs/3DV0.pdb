@@ -1,3 +1,4 @@
+HEADER    PROTEIN                                 01-JAN-00   3DV0
 ATOM      1  N   ARG I 127       1.144   3.587  80.691  1.00 64.70           N  
 ATOM      2  CA  ARG I 127       0.007   4.352  81.292  1.00 65.70           C  
 ATOM      3  C   ARG I 127       0.238   5.858  81.165  1.00 64.09           C  

@@ -37,7 +37,7 @@ If you built from a git clone the model weights are not included; mount them:
 conda create -n eris2 python=3.8 -y
 conda activate eris2
 pip install -r requirements.txt
-conda install -c salilab dssp -y      # provides mkdssp
+conda install -c conda-forge dssp -y   # provides mkdssp
 ```
 
 DSSP is required. Check it before running anything:
@@ -146,6 +146,25 @@ means DSSP is not working.
 
 `model/eris2_ensemble.pt` and `model/model_config.yaml` are found automatically.
 To use a different checkpoint, pass `--checkpoint` and `--config`.
+
+The weights are distributed as a release asset rather than in the git tree,
+because of their size. Check that you have the right file:
+
+| | |
+|---|---|
+| file | `model/eris2_ensemble.pt` |
+| size | 112,054,558 bytes |
+| MD5 | `6c8f7963e9ea3a89a7e2300d7dd16c0f` |
+| contents | 5 cross-validation models, format `eris2-ensemble-v1` |
+
+```bash
+md5sum model/eris2_ensemble.pt
+```
+
+A prediction is the mean of the five models. No single fold is used, and no
+checkpoint was selected on any benchmark. Earlier deposits contained files named
+`model.pth` and `model_quantum.pth` from a previous, incompatible version of the
+code; those are superseded and will not load here.
 
 ## Optional: precomputing features
 

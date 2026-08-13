@@ -35,15 +35,17 @@ def predict(pdb, chain, mutations, checkpoint, config, cache_dir, device=None):
                                          shuffle=False, collate_fn=collate)
 
     models = load_models(checkpoint, config, device)
-    ddg, per_model, _ = predict_batch(models, loader, device)
+    ddg, per_model, _, rows = predict_batch(models, loader, device)
 
     if len(ddg) != len(mutations):
+        failed = [mutations[i] for i in range(len(mutations)) if i not in set(rows)]
         raise RuntimeError(
-            f"{len(mutations) - len(ddg)} of {len(mutations)} mutations could not "
-            f"be featurised from {pdb.name} chain {chain}. Check that the position "
-            f"exists in the structure and that the wild-type residue matches.")
+            f"{len(failed)} of {len(mutations)} mutations could not be featurised "
+            f"from {pdb.name} chain {chain}: {', '.join(failed)}. Check that the "
+            f"position exists in the structure and that the wild-type residue matches.")
 
-    out = pd.DataFrame({"pdb": pdb.stem, "chain": chain, "mutation": mutations,
+    out = pd.DataFrame({"pdb": pdb.stem, "chain": chain,
+                        "mutation": [mutations[i] for i in rows],
                         "ddg_pred": ddg})
     for i in range(per_model.shape[0]):
         out[f"fold_{i + 1}"] = per_model[i]

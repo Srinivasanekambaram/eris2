@@ -12,9 +12,12 @@ FROM python:3.8-slim-bookworm
 # mkdssp computes solvent accessibility, secondary structure and backbone
 # angles. Installing it from the distribution avoids the shared-library
 # mismatches that occur when a prebuilt binary meets a different Boost.
+# build-essential is required on architectures with no manylinux wheel for
+# every dependency (notably aarch64, where biopython builds from source).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         dssp \
         libgomp1 \
+        build-essential \
     && rm -rf /var/lib/apt/lists/* \
     && (command -v mkdssp || ln -s "$(command -v dssp)" /usr/local/bin/mkdssp) \
     && mkdssp --version
@@ -22,7 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/eris2
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu \
+# --extra-index-url, not --index-url: the PyTorch index carries only torch, so
+# replacing PyPI outright leaves pip unable to fetch build backends such as
+# flit_core and the rest of the dependency set.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir torch==2.4.1 \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
 COPY eris2/     ./eris2/

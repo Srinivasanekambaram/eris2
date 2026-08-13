@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import atexit
 import gc
 import hashlib
 import math
+import os
 import pickle
+import re
+import shutil
+import tempfile
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,7 +27,7 @@ CACHE_VERSION = "v2.0"
 DSSP_HELP = """ERIS2 requires DSSP (`mkdssp`) for solvent accessibility, secondary
 structure and backbone angles.
 
-    conda install -c salilab dssp
+    conda install -c conda-forge dssp
 
 If mkdssp is installed but fails to load its shared libraries, add the
 environment's lib directory to the loader path:
@@ -327,11 +332,39 @@ def get_atom_type_features(
     return np.asarray(per_res, dtype=np.float32)
 
 
+MUTATION_RE = re.compile(r"^[ACDEFGHIKLMNPQRSTVWY]-?\d+[ACDEFGHIKLMNPQRSTVWY]$")
+
+_HEADER_FIXED: Dict[str, str] = {}
+
+
+def _dssp_input(pdb_file: str) -> str:
+    if pdb_file in _HEADER_FIXED:
+        return _HEADER_FIXED[pdb_file]
+    try:
+        with open(pdb_file) as f:
+            first = f.readline()
+    except OSError:
+        return pdb_file
+    if first.startswith(("HEADER", "data_")):
+        return pdb_file
+
+    stem = Path(pdb_file).stem[:4].upper()
+    header = f"HEADER    PROTEIN{' ' * 33}01-JAN-00   {stem:<4}\n"
+    tmp = tempfile.NamedTemporaryFile("w", suffix=".pdb", delete=False)
+    with open(pdb_file) as src:
+        tmp.write(header)
+        shutil.copyfileobj(src, tmp)
+    tmp.close()
+    atexit.register(lambda p=tmp.name: os.path.exists(p) and os.unlink(p))
+    _HEADER_FIXED[pdb_file] = tmp.name
+    return tmp.name
+
+
 def calculate_dssp_features(
     pdb_file: str, structure: PDB.Structure.Structure, chain_id: str
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     try:
-        dssp = DSSP(structure[0], pdb_file, dssp="mkdssp")
+        dssp = DSSP(structure[0], _dssp_input(pdb_file), dssp="mkdssp")
     except Exception as e:
 
         raise RuntimeError(
@@ -539,6 +572,13 @@ class ProteinDataset(Dataset):
         if not sequence:
             return None
 
+        if not MUTATION_RE.match(str(mutation)):
+            warnings.warn(
+                f"skipping malformed mutation {mutation!r} for {uniprot_id} "
+                f"chain {chain_id}: expected e.g. C191F (wild-type residue, "
+                f"position in PDB numbering, mutant residue)")
+            return None
+
         wt_aa = mutation[0]
         pdb_position = int(mutation[1:-1])
         mut_aa = mutation[-1]
@@ -646,6 +686,7 @@ class ProteinDataset(Dataset):
                         path.unlink(missing_ok=True)
                     continue
                 sample["ddg"] = torch.tensor(float(ddg), dtype=torch.float32)
+                sample["row_index"] = torch.tensor(int(idx), dtype=torch.long)
                 return self._apply_zeroing(sample)
 
         try:
@@ -661,4 +702,5 @@ class ProteinDataset(Dataset):
         if self.config.use_disk_cache:
             with open(self._cache_path(uniprot_id, chain_id, mutation), "wb") as f:
                 pickle.dump(sample, f)
+        sample["row_index"] = torch.tensor(int(idx), dtype=torch.long)
         return self._apply_zeroing(sample)
