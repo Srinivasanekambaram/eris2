@@ -1,59 +1,39 @@
 # ERIS2 training config — reference. Copy and edit for your run.
-# Every hyperparameter that used to live in main.py is now in this file.
-
 experiment:
-  name: eris2_default              # subdir under output_dir where results land
+  name: eris2_default              
   output_dir: ./runs
   seed: 42
 
 dataset:
-  csv_file: /path/to/training.csv  # columns: uniprot,chain,mut,ddg (+ optional cluster_id)
+  csv_file: /path/to/training.csv 
   pdb_folder: /path/to/pdbs
-  cache_dir: ./cache               # per-mutation feature pickles + ESM embeddings
+  cache_dir: ./cache              
   use_disk_cache: true
 
-
-  # Optional read-only cache consulted on a miss; misses are written to
-  # cache_dir only. Lets a new experiment reuse an existing feature cache
-  # without copying it. Features never depend on the label.
-  # fallback_cache_dir: /path/to/previous/cache
-
-  # Retrained feature ablation: zero these sample tensors at load time. The
-  # architecture is unchanged, so a drop reflects information removed rather
-  # than capacity removed. Valid names: wt_embedding, mut_embedding,
-  # ca_distance_matrix, atom_distance_matrix, rsa_values, backbone_angles,
-  # hbond_features, ss_features, charge_features, hydrophobicity_features,
-  # atom_features.
-  # zero_features: [ca_distance_matrix, atom_distance_matrix]
-
-  # ESM2 -> 20-dim one-hot ablation (set model.esm_dim to 20 as well).
-  # use_onehot: false
-
-  # Feature-extraction geometry — keep in sync with ModelConfig below.
-  window_half: 15                  # 31-residue ESM window centered on mutation
-  ca_radius_a: 15.0                # CA-neighborhood radius for distance matrix
-  ca_neigh: 15                     # fixed CA distance-matrix side (pad if fewer)
-  atom_neigh: 100                  # fixed all-atom distance-matrix side
+  window_half: 15               
+  ca_radius_a: 15.0             
+  ca_neigh: 15                    
+  atom_neigh: 100                  
 
   esm_model_name: esm2_t33_650M_UR50D
-  hbond_distance_cutoff_a: 3.5   # N–O heavy-atom distance cutoff (Å) for backbone H-bond count
+  hbond_distance_cutoff_a: 3.5   
 
-  device: null                     # null = auto (cuda if available)
-  offline_esm: false               # set true only after esm_embedding.py has been run
+  device: null                    
+  offline_esm: false               
 
 model:
-  esm_dim: 1280                    # ESM-2 650M residue-embedding dim
+  esm_dim: 1280                   
   d_model: 256
   n_heads: 8
   n_sequence_layers: 3
   d_ff: 1024
   dropout: 0.1
 
-  window_len: 31                   # must equal 2*dataset.window_half + 1
-  mutation_position: 15            # center of window (== window_half)
+  window_len: 31                  
+  mutation_position: 15            
 
-  ca_matrix_size: 15               # must equal dataset.ca_neigh
-  atom_matrix_size: 100            # must equal dataset.atom_neigh
+  ca_matrix_size: 15              
+  atom_matrix_size: 100          
 
   per_residue_hidden: 64
   struct_hidden: 128
@@ -62,18 +42,14 @@ model:
 
 splitting:
   n_folds: 5
-  val_fraction: 0.10               # held out from each fold's train side for early stopping
+  val_fraction: 0.10              
   split_seed: 12345
-  freeze_folds: true               # write folds.json on first run, reuse forever
-  cluster_column: cluster_id       # REQUIRED unless allow_random_split is true (below).
-                                   # STRICT cluster-aware split — the column must exist in the CSV.
-  allow_random_split: false        # Escape hatch: set true AND omit cluster_column to opt into
-                                   # a RANDOM split. This leaks homology (reviewer 3.2b) —
-                                   # only use for baseline comparisons.
-
+  freeze_folds: true              
+  cluster_column: cluster_id      
+  allow_random_split: false       
 training:
   batch_size: 64
-  num_workers: 0                   # 0 to avoid CUDA-fork with ESM; raise only if ESM cache is pre-warmed
+  num_workers: 0                   
   lr: 1.0e-4
   weight_decay: 1.0e-4
   max_epochs: 50
