@@ -1,6 +1,6 @@
 from pathlib import Path
 
-__version__ = "3.0"
+__version__ = "4.2"
 
 _ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CHECKPOINT = str(_ROOT / "model" / "eris2_ensemble.pt")
