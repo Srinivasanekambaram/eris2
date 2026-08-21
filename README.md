@@ -25,10 +25,10 @@ The image includes DSSP, so the shared-library problems that affect local
 installs do not arise. `-v eris2-cache:/cache` keeps the ESM-2 download
 (~2.5 GB) between runs. Add `--gpus all` with the GPU image.
 
-If you built from a git clone the model weights are not included; mount them:
+If you built from a git clone the model weights are not included; download them from Zenodo:
 
 ```bash
--v /path/to/eris2_ensemble.pt:/opt/eris2/model/eris2_ensemble.pt
+wget -O model/eris2_ensemble.pt "https://zenodo.org/records/21908837/files/eris2_ensemble.pt?download=1"
 ```
 
 ### Conda
@@ -147,7 +147,7 @@ means DSSP is not working.
 `model/eris2_ensemble.pt` and `model/model_config.yaml` are found automatically.
 To use a different checkpoint, pass `--checkpoint` and `--config`.
 
-The weights are distributed as a release asset rather than in the git tree,
+The weights are distributed via Zenodo rather than in the git tree,
 because of their size. Check that you have the right file:
 
 | | |
@@ -162,9 +162,7 @@ md5sum model/eris2_ensemble.pt
 ```
 
 A prediction is the mean of the five models. No single fold is used, and no
-checkpoint was selected on any benchmark. Earlier deposits contained files named
-`model.pth` and `model_quantum.pth` from a previous, incompatible version of the
-code; those are superseded and will not load here.
+checkpoint was selected on any benchmark.
 
 ## Optional: precomputing features
 
